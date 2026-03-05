@@ -111,7 +111,7 @@ export function registerAppHandlers(): void {
   })
 
   ipcMain.handle('fetch-license-text', async () => {
-    const resp = await fetch('https://huggingface.co/Lightricks/LTX-2/raw/main/LICENSE')
+    const resp = await fetch('https://huggingface.co/Lightricks/LTX-2.3/raw/main/LICENSE')
     if (!resp.ok) {
       throw new Error(`Failed to fetch license (HTTP ${resp.status})`)
     }
