@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { Play, Pause, Download, RefreshCw, RotateCcw, Volume2, VolumeX, Maximize2 } from 'lucide-react'
+import { Play, Pause, Download, RefreshCw, RotateCcw, Volume2, VolumeX, Maximize2, FastForward } from 'lucide-react'
 import { Button } from './ui/button'
 import { logger } from '../lib/logger'
 
@@ -11,6 +11,7 @@ interface VideoPlayerProps {
   progress: number
   statusMessage: string
   modelName?: string | null
+  onExtendVideo?: (frameUrl: string, framePath: string) => void
 }
 
 function formatTime(seconds: number): string {
@@ -25,7 +26,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'seedance-1.5-pro': 'Seedance 1.5 Pro',
 }
 
-export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, modelName }: VideoPlayerProps) {
+export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, modelName, onExtendVideo }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -265,6 +266,19 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
+    }
+  }
+
+  const handleExtendVideo = async () => {
+    if (!videoUrl || !onExtendVideo) return
+    try {
+      // Extract the last frame of the video
+      const video = videoRef.current
+      const seekTime = video && video.duration ? video.duration - 0.05 : 0
+      const result = await window.electronAPI.extractVideoFrame(videoUrl, seekTime)
+      onExtendVideo(result.url, result.path)
+    } catch (err) {
+      logger.error(`Failed to extract frame for extend: ${err}`)
     }
   }
 
@@ -531,6 +545,19 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
                   >
                     <Download className="h-4 w-4" />
                   </Button>
+
+                  {/* Extend Video */}
+                  {onExtendVideo && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleExtendVideo}
+                      className="h-8 w-8 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800"
+                      title="Extend video — use last frame to continue generating"
+                    >
+                      <FastForward className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               

@@ -158,6 +158,18 @@ export function Playground() {
     }
   }
   
+  // Handle "Extend video" — extract last frame, set as first frame for next gen
+  const handleExtendVideo = (frameUrl: string, framePath: string) => {
+    setFirstFrameUrl(frameUrl)
+    setFirstFramePath(framePath)
+    setSelectedImage(null) // Clear manual image upload so first frame takes priority
+    setPrompt('') // Clear prompt so user writes what happens next
+    reset() // Clear previous generation result
+    if (mode !== 'text-to-video' && mode !== 'image-to-video') {
+      setMode('text-to-video')
+    }
+  }
+
   // Handle "Create video" from generated image
   const handleCreateVideoFromImage = () => {
     if (!imageUrl) {
@@ -423,6 +435,7 @@ export function Playground() {
               progress={progress}
               statusMessage={statusMessage}
               modelName={lastModel}
+              onExtendVideo={handleExtendVideo}
             />
           )}
         </div>
