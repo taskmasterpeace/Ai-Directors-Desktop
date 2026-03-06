@@ -22,7 +22,7 @@ type RequiredModelsGateState = 'checking' | 'missing' | 'ready'
 function AppContent() {
   const { currentView } = useProjects()
   const { status, processStatus, isLoading: backendLoading, error: backendError } = useBackend()
-  const { settings, saveLtxApiKey, saveFalApiKey, forceApiGenerations, isLoaded, runtimePolicyLoaded } = useAppSettings()
+  const { settings, saveLtxApiKey, saveReplicateApiKey, forceApiGenerations, isLoaded, runtimePolicyLoaded } = useAppSettings()
 
   const [pythonReady, setPythonReady] = useState<boolean | null>(null)
   const [backendStarted, setBackendStarted] = useState(false)
@@ -36,7 +36,7 @@ function AppContent() {
   const setupCompletionInFlightRef = useRef<Promise<void> | null>(null)
 
   type ApiGatewayRequest = {
-    requiredKeys: Array<'ltx' | 'fal'>
+    requiredKeys: Array<'ltx' | 'replicate'>
     title: string
     description: string
     blocking?: boolean
@@ -299,16 +299,16 @@ function AppContent() {
         getKeyLabel: 'Get LTX API key',
       },
       {
-        keyType: 'fal',
-        title: 'FAL AI',
-        description: 'Required to generate images with Z Image Turbo.',
-        required: apiGatewayRequest.requiredKeys.includes('fal'),
-        isConfigured: settings.hasFalApiKey,
-        inputLabel: 'FAL AI API key',
-        placeholder: 'Enter your FAL AI API key...',
-        onSave: saveFalApiKey,
-        onGetKey: () => window.electronAPI.openFalApiKeyPage(),
-        getKeyLabel: 'Get FAL API key',
+        keyType: 'replicate',
+        title: 'Replicate',
+        description: 'Required for cloud image generation.',
+        required: apiGatewayRequest.requiredKeys.includes('replicate'),
+        isConfigured: settings.hasReplicateApiKey,
+        inputLabel: 'Replicate API key',
+        placeholder: 'Enter your Replicate API key...',
+        onSave: saveReplicateApiKey,
+        onGetKey: () => window.electronAPI.openReplicateApiKeyPage(),
+        getKeyLabel: 'Get Replicate API key',
       },
     ]
 
@@ -321,9 +321,9 @@ function AppContent() {
     apiGatewayRequest,
     isForcedFirstRun,
     saveApiKeyForFirstRun,
-    saveFalApiKey,
+    saveReplicateApiKey,
     saveLtxApiKey,
-    settings.hasFalApiKey,
+    settings.hasReplicateApiKey,
     settings.hasLtxApiKey,
   ])
 
@@ -372,7 +372,7 @@ function AppContent() {
         <div className="h-screen bg-background flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Starting LTX Desktop...</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-2">Starting Director's Desktop...</h2>
             <p className="text-muted-foreground">Initializing the inference engine</p>
           </div>
         </div>

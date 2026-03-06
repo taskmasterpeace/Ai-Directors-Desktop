@@ -132,7 +132,7 @@ export function Home() {
   const getDefaultAssetPath = (name: string) => {
     if (!defaultDownloadsPath) return ''
     const sep = defaultDownloadsPath.includes('\\') ? '\\' : '/'
-    return `${defaultDownloadsPath}${sep}Ltx Desktop Assets${sep}${name}`
+    return `${defaultDownloadsPath}${sep}Directors Desktop Assets${sep}${name}`
   }
   
   const handleCreateProject = () => {
@@ -244,7 +244,7 @@ export function Home() {
           {/* Dark overlay for text readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
           <div className="absolute bottom-6 left-8 z-10">
-            <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">LTX Desktop</h1>
+            <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">Director's Desktop</h1>
             <p className="text-zinc-200 drop-shadow-md">Create and manage your video projects</p>
           </div>
         </div>
@@ -313,7 +313,7 @@ export function Home() {
                   type="text"
                   value={newProjectAssetPath || (newProjectName.trim() ? getDefaultAssetPath(newProjectName.trim()) : '')}
                   onChange={(e) => setNewProjectAssetPath(e.target.value)}
-                  placeholder={newProjectName.trim() ? getDefaultAssetPath(newProjectName.trim()) : 'Downloads/Ltx Desktop Assets/...'}
+                  placeholder={newProjectName.trim() ? getDefaultAssetPath(newProjectName.trim()) : 'Downloads/Directors Desktop Assets/...'}
                   className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 truncate"
                 />
                 <Button

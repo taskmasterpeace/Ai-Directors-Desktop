@@ -10,6 +10,7 @@ interface VideoPlayerProps {
   isGenerating: boolean
   progress: number
   statusMessage: string
+  modelName?: string | null
 }
 
 function formatTime(seconds: number): string {
@@ -18,7 +19,13 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage }: VideoPlayerProps) {
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'ltx-fast': 'LTX Fast',
+  'ltx-pro': 'LTX Pro',
+  'seedance-1.5-pro': 'Seedance 1.5 Pro',
+}
+
+export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, modelName }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -254,7 +261,7 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
       const a = document.createElement('a')
       a.href = displayedVideoUrl
       const suffix = showingUpscaled ? '-upscaled' : ''
-      a.download = `ltx-desktop${suffix}-${Date.now()}.mp4`
+      a.download = `directors-desktop${suffix}-${Date.now()}.mp4`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -438,7 +445,15 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
                   </Button>
                 </div>
               )}
-              
+
+              {/* Model badge */}
+              {modelName && (
+                <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm border border-white/10">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-[11px] font-medium text-white/80">{MODEL_DISPLAY_NAMES[modelName] || modelName}</span>
+                </div>
+              )}
+
             </div>
             
             {/* Video controls bar */}
