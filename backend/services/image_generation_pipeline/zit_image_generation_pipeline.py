@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, cast
@@ -11,6 +12,8 @@ from diffusers.pipelines.auto_pipeline import ZImagePipeline  # type: ignore[rep
 from PIL.Image import Image as PILImage
 
 from services.services_utils import ImagePipelineOutputLike, PILImageType, get_device_type
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -90,10 +93,23 @@ class ZitImageGenerationPipeline:
 
     def to(self, device: str) -> None:
         runtime_device = get_device_type(device)
-        if runtime_device in ("cuda", "mps"):
+        if runtime_device == "cuda":
+            # CUDA supports model CPU offloading for reduced VRAM usage
+            logger.info("[ZIT] Moving pipeline to CUDA with CPU offload")
             self.pipeline.enable_model_cpu_offload()  # type: ignore[reportUnknownMemberType]
             self._cpu_offload_active = True
+        elif runtime_device == "mps":
+            # MPS does NOT support enable_model_cpu_offload (CUDA-only API).
+            # Use direct device placement instead, with attention slicing for memory.
+            logger.info("[ZIT] Moving pipeline to MPS (direct placement)")
+            self.pipeline.to("mps")  # type: ignore[reportUnknownMemberType]
+            try:
+                self.pipeline.enable_attention_slicing()  # type: ignore[reportUnknownMemberType]
+            except Exception as exc:
+                logger.warning("[ZIT] Could not enable attention slicing: %s", exc)
+            self._cpu_offload_active = False
         else:
+            logger.info("[ZIT] Moving pipeline to %s", runtime_device)
             self._cpu_offload_active = False
             self.pipeline.to(runtime_device)  # type: ignore[reportUnknownMemberType]
         self._device = runtime_device

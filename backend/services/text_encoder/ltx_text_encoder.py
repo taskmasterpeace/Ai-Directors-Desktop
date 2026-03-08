@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import torch
 
 from services.http_client.http_client import HTTPClient
-from services.services_utils import PromptInput, TensorOrNone, sync_device
+from services.services_utils import PromptInput, TensorOrNone, device_supports_fp8, sync_device
 from state.app_state_types import CachedTextEncoder, TextEncodingResult
 
 if TYPE_CHECKING:
@@ -49,6 +49,8 @@ class LTXTextEncoder:
                 """Cast all Linear weights to float8_e4m3fn and patch forward to upcast."""
                 for child in module.modules():  # type: ignore[union-attr]
                     if not isinstance(child, torch.nn.Linear):
+                        continue
+                    if not device_supports_fp8(self.device):
                         continue
                     child.weight.data = child.weight.data.to(torch.float8_e4m3fn)
                     if child.bias is not None:  # pyright: ignore[reportUnnecessaryComparison]
@@ -115,7 +117,6 @@ class LTXTextEncoder:
                 "ltx_pipelines.ic_lora",
                 "ltx_pipelines.a2vid_two_stage",
                 "ltx_pipelines.retake",
-                "ltx_pipelines.retake_pipeline",
             ):
                 try:
                     module = __import__(module_name, fromlist=["cleanup_memory"])
@@ -176,7 +177,6 @@ class LTXTextEncoder:
                 "ltx_pipelines.ic_lora",
                 "ltx_pipelines.a2vid_two_stage",
                 "ltx_pipelines.retake",
-                "ltx_pipelines.retake_pipeline",
             ):
                 try:
                     module = __import__(module_name, fromlist=["encode_text"])

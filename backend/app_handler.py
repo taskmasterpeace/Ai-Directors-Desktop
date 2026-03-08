@@ -246,6 +246,22 @@ class AppHandler:
         from state.job_queue import JobQueue
         self.job_queue = JobQueue(persistence_path=config.settings_file.parent / "job_queue.json")
 
+        # Wire up the QueueWorker with concrete executors so submitted jobs
+        # are dispatched to the appropriate generation handler.
+        from handlers.job_executors import ApiJobExecutor, GpuJobExecutor
+        from handlers.queue_worker import QueueWorker
+        self.queue_worker = QueueWorker(
+            queue=self.job_queue,
+            gpu_executor=GpuJobExecutor(
+                video_generation=self.video_generation,
+                image_generation=self.image_generation,
+            ),
+            api_executor=ApiJobExecutor(
+                video_generation=self.video_generation,
+                image_generation=self.image_generation,
+            ),
+        )
+
         from state.library_store import LibraryStore
         library_store = LibraryStore(config.settings_file.parent / "library")
         self.library = LibraryHandler(store=library_store)
