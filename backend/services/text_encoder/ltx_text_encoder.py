@@ -83,13 +83,26 @@ class LTXTextEncoder:
                     return te_state.cached_encoder
 
                 saved_device = self_model_ledger.device
+                # We force everything to CPU during initial build/loading to ensure
+                # weights are actually loaded (not left on 'meta') and to allow
+                # our custom quantization to run on a real device.
                 self_model_ledger.device = torch.device("cpu")
+                
+                # Some versions of ltx-pipelines use _target_device() for the build() call.
+                # If it returns 'meta', the subsequent .to(self.device) in the original
+                # code will fail for meta tensors.
+                original_target_device_method = getattr(self_model_ledger, "_target_device", None)
+                if original_target_device_method:
+                    setattr(self_model_ledger, "_target_device", lambda: torch.device("cpu"))
+
                 try:
                     te_state.cached_encoder = cast(
                         CachedTextEncoder, original_text_encoder(self_model_ledger)
                     )
                 finally:
                     self_model_ledger.device = saved_device
+                    if original_target_device_method:
+                        setattr(self_model_ledger, "_target_device", original_target_device_method)
 
                 _quantize_linear_weights_fp8(te_state.cached_encoder)
 

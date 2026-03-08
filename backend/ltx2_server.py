@@ -243,6 +243,16 @@ def background_warmup() -> None:
     handler.health.default_warmup()
 
 
+def queue_worker_loop() -> None:
+    import time
+    while True:
+        try:
+            handler.queue_worker.tick()
+        except Exception:
+            logger.error("Queue worker tick failed", exc_info=True)
+        time.sleep(0.5)
+
+
 def log_hardware_info() -> None:
     """Log runtime hardware and environment details."""
     gpu = GpuInfoImpl()
@@ -267,6 +277,9 @@ if __name__ == "__main__":
 
     warmup_thread = threading.Thread(target=background_warmup, daemon=True)
     warmup_thread.start()
+
+    queue_thread = threading.Thread(target=queue_worker_loop, daemon=True)
+    queue_thread.start()
 
     # Use our root logging config so uvicorn logs go to stdout (not its
     # default stderr), letting Electron tag them correctly as INFO.
