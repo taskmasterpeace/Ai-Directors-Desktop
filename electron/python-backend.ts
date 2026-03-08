@@ -3,8 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { getAppDataDir } from './app-paths'
 import { BACKEND_BASE_URL, getCurrentDir, isDev, PYTHON_PORT } from './config'
-import { logger } from './logger'
-import { getCurrentLogFilename } from './logging-management'
+import { logger, writeLog } from './logger'
 import { getPythonDir } from './python-setup'
 import { getMainWindow } from './window'
 
@@ -222,8 +221,8 @@ export async function startPythonBackend(): Promise<void> {
       env: {
         ...process.env,
         PYTHONUNBUFFERED: '1',
+        PYTHONNOUSERSITE: '1',
         LTX_PORT: String(PYTHON_PORT),
-        LTX_LOG_FILE: getCurrentLogFilename(),
         LTX_APP_DATA_DIR: getAppDataDir(),
         PYTORCH_ENABLE_MPS_FALLBACK: '1',
         // Set PYTHONHOME for bundled Python on macOS so it finds its stdlib
@@ -267,12 +266,20 @@ export async function startPythonBackend(): Promise<void> {
     pythonProcess.stdout?.on('data', (data: Buffer) => {
       const output = data.toString()
       console.log(`[Python] ${output}`)
+      for (const line of output.split('\n')) {
+        const trimmed = line.trimEnd()
+        if (trimmed) writeLog('INFO', 'Backend', trimmed)
+      }
       checkStarted(output)
     })
 
     pythonProcess.stderr?.on('data', (data: Buffer) => {
       const output = data.toString()
       console.error(`[Python Error] ${output}`)
+      for (const line of output.split('\n')) {
+        const trimmed = line.trimEnd()
+        if (trimmed) writeLog('ERROR', 'Backend', trimmed)
+      }
       checkStarted(output)
     })
 

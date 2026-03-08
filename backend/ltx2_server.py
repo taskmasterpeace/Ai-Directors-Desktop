@@ -20,7 +20,6 @@ if os.environ.get("BACKEND_DEBUG") == "1":
 import logging
 from pathlib import Path
 import threading
-from datetime import datetime
 
 # Note: expandable_segments is not supported on all platforms
 
@@ -32,37 +31,16 @@ from state.app_settings import AppSettings
 # ============================================================
 
 import platform
-_env_log_file = os.environ.get("LTX_LOG_FILE")
-if _env_log_file:
-    log_file: Path | None = Path(_env_log_file)
-else:
-    _env_app_data = os.environ.get("LTX_APP_DATA_DIR")
-    if _env_app_data:
-        _ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log_file = Path(_env_app_data) / "logs" / f"backend_{_ts}_unknown.log"
-    else:
-        log_file = None  # console-only logging
 
-log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - [Backend] %(message)s')
-
-console_handler = logging.StreamHandler()
+# Backend logs to console only — Electron captures stdout/stderr and writes
+# them to the session log file. This ensures *all* output (including early
+# import errors and unhandled tracebacks) reaches the log, not just messages
+# that go through Python's logging module.
+console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(log_formatter)
 
-handlers: list[logging.Handler] = [console_handler]
-if log_file is not None:
-    try:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(log_formatter)
-        handlers.append(file_handler)
-    except Exception as exc:
-        print(f"Log file setup failed at {log_file}: {exc}", file=sys.stderr)
-
-logging.basicConfig(level=logging.INFO, handlers=handlers)
+logging.basicConfig(level=logging.INFO, handlers=[console_handler])
 logger = logging.getLogger(__name__)
-logger.info(f"Log file: {log_file}")
 
 # ============================================================
 # SageAttention Integration
@@ -153,7 +131,7 @@ MODELS_DIR = APP_DATA_DIR / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 PROJECT_ROOT = Path(__file__).parent.parent
-OUTPUTS_DIR = Path(__file__).parent / "outputs"
+OUTPUTS_DIR = APP_DATA_DIR / "outputs"
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 logger.info(f"Models directory: {MODELS_DIR}")
@@ -284,11 +262,27 @@ if __name__ == "__main__":
     port = int(os.environ.get("LTX_PORT", PORT))
     logger.info("=" * 60)
     logger.info("LTX-2 Video Generation Server (FastAPI + Uvicorn)")
-    logger.info(f"Log file: {log_file}")
     log_hardware_info()
     logger.info("=" * 60)
 
     warmup_thread = threading.Thread(target=background_warmup, daemon=True)
     warmup_thread.start()
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info", access_log=False)
+    # Use our root logging config so uvicorn logs go to stdout (not its
+    # default stderr), letting Electron tag them correctly as INFO.
+    log_config: dict[str, object] = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "handlers": {
+            "default": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["default"], "level": "INFO"},
+            "uvicorn.error": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        },
+    }
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info", access_log=False, log_config=log_config)
