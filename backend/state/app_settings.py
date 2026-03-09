@@ -80,6 +80,19 @@ class AppSettings(SettingsBaseModel):
     seed_locked: bool = False
     locked_seed: int = 42
     batch_sound_enabled: bool = True
+    ffn_chunk_count: int = 8
+    tea_cache_threshold: float = 0.0
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_endpoint: str = ""
+    r2_bucket: str = ""
+    r2_public_url: str = ""
+    auto_upload_to_r2: bool = False
+
+    @field_validator("ffn_chunk_count", mode="before")
+    @classmethod
+    def _clamp_ffn_chunk_count(cls, value: Any) -> int:
+        return _clamp_int(value, minimum=0, maximum=32, default=8)
 
     @field_validator("prompt_cache_size", mode="before")
     @classmethod
@@ -156,6 +169,10 @@ class SettingsResponse(SettingsBaseModel):
     seed_locked: bool = False
     locked_seed: int = 42
     batch_sound_enabled: bool = True
+    ffn_chunk_count: int = 8
+    tea_cache_threshold: float = 0.0
+    has_r2_credentials: bool = False
+    auto_upload_to_r2: bool = False
 
 
 def to_settings_response(settings: AppSettings) -> SettingsResponse:
@@ -169,6 +186,12 @@ def to_settings_response(settings: AppSettings) -> SettingsResponse:
     data["has_replicate_api_key"] = bool(replicate_key)
     data["has_palette_api_key"] = bool(palette_key)
     data["has_gemini_api_key"] = bool(gemini_key)
+    r2_key = data.pop("r2_access_key_id", "")
+    data.pop("r2_secret_access_key", "")
+    data.pop("r2_endpoint", "")
+    data.pop("r2_bucket", "")
+    data.pop("r2_public_url", "")
+    data["has_r2_credentials"] = bool(r2_key)
     return SettingsResponse.model_validate(data)
 
 

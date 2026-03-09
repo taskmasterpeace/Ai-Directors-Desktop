@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from threading import RLock
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import torch
@@ -20,6 +21,8 @@ from services.interfaces import (
     RetakePipeline,
     VideoPipelineModelType,
 )
+from services.gpu_optimizations.ffn_chunking import patch_ffn_chunking
+from services.gpu_optimizations.tea_cache import install_tea_cache_patch
 from services.services_utils import device_supports_fp8, get_device_type
 from state.app_state_types import (
     A2VPipelineState,
@@ -135,7 +138,25 @@ class PipelinesHandler(StateHandlerBase):
             warmth=VideoPipelineWarmth.COLD,
             is_compiled=False,
         )
-        return self._compile_if_enabled(state)
+        state = self._compile_if_enabled(state)
+
+        # Apply FFN chunking if enabled and torch.compile is not active
+        chunk_count = self.state.app_settings.ffn_chunk_count
+        if chunk_count > 0 and not state.is_compiled:
+            try:
+                transformer: torch.nn.Module = state.pipeline.pipeline.model_ledger.transformer()  # type: ignore[union-attr]
+                patch_ffn_chunking(transformer, num_chunks=chunk_count)  # pyright: ignore[reportUnknownArgumentType]
+            except AttributeError:
+                logger.debug("FFN chunking skipped — pipeline has no model_ledger")
+
+        # Install TeaCache denoising loop patch
+        tea_threshold = self.state.app_settings.tea_cache_threshold
+        try:
+            install_tea_cache_patch(tea_threshold)
+        except (ImportError, AttributeError):
+            logger.debug("TeaCache skipped — ltx_pipelines not available")
+
+        return state
 
     def unload_gpu_pipeline(self) -> None:
         with self._lock:
@@ -170,13 +191,26 @@ class PipelinesHandler(StateHandlerBase):
             self.state.cpu_slot = CpuSlot(active_pipeline=zit)
             self._assert_invariants()
 
-    def load_zit_to_gpu(self) -> ImageGenerationPipeline:
+    def load_zit_to_gpu(
+        self,
+        on_phase: "Callable[[str], None] | None" = None,
+    ) -> ImageGenerationPipeline:
+        def _report(phase: str) -> None:
+            if on_phase is not None:
+                on_phase(phase)
+
         with self._lock:
             if self.state.gpu_slot is not None:
                 active = self.state.gpu_slot.active_pipeline
                 if not isinstance(active, (VideoPipelineState, ICLoraState, A2VPipelineState, RetakePipelineState)):
                     return active
                 self._ensure_no_running_generation()
+                # Unload the video/other pipeline from GPU before loading ZIT
+                _report("unloading_video_model")
+                self.state.gpu_slot = None
+                self._assert_invariants()
+        _report("cleaning_gpu")
+        self._gpu_cleaner.cleanup()
 
         zit_service: ImageGenerationPipeline | None = None
 
@@ -188,6 +222,7 @@ class PipelinesHandler(StateHandlerBase):
                 case _:
                     zit_service = None
 
+        _report("loading_image_model")
         if zit_service is None:
             zit_path = self._config.model_path("zit")
             if not (zit_path.exists() and any(zit_path.iterdir())):
@@ -195,8 +230,6 @@ class PipelinesHandler(StateHandlerBase):
             zit_service = self._image_generation_pipeline_class.create(str(zit_path), self._runtime_device)
         else:
             zit_service.to(self._runtime_device)
-
-        self._gpu_cleaner.cleanup()
 
         with self._lock:
             self.state.gpu_slot = GpuSlot(active_pipeline=zit_service, generation=None)
@@ -246,8 +279,17 @@ class PipelinesHandler(StateHandlerBase):
         elif should_cleanup:
             self._gpu_cleaner.cleanup()
 
-    def load_gpu_pipeline(self, model_type: VideoPipelineModelType, should_warm: bool = False) -> VideoPipelineState:
+    def load_gpu_pipeline(
+        self,
+        model_type: VideoPipelineModelType,
+        should_warm: bool = False,
+        on_phase: Callable[[str], None] | None = None,
+    ) -> VideoPipelineState:
         self._install_text_patches_if_needed()
+
+        def _report(phase: str) -> None:
+            if on_phase is not None:
+                on_phase(phase)
 
         state: VideoPipelineState | None = None
         with self._lock:
@@ -259,7 +301,9 @@ class PipelinesHandler(StateHandlerBase):
                         pass
 
         if state is None:
+            _report("unloading_image_model")
             self._evict_gpu_pipeline_for_swap()
+            _report("loading_video_model")
             state = self._create_video_pipeline(model_type)
             with self._lock:
                 self.state.gpu_slot = GpuSlot(active_pipeline=state, generation=None)

@@ -6,6 +6,7 @@ import logging
 import threading
 from typing import Callable, Protocol
 
+from services.interfaces import GpuCleaner
 from state.job_queue import JobQueue, QueueJob
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,14 @@ class QueueWorker:
         queue: JobQueue,
         gpu_executor: JobExecutor,
         api_executor: JobExecutor,
+        gpu_cleaner: GpuCleaner | None = None,
         on_batch_complete: Callable[[str, list[QueueJob]], None] | None = None,
         enhance_handler: EnhancePromptProvider | None = None,
     ) -> None:
         self._queue = queue
         self._gpu_executor = gpu_executor
         self._api_executor = api_executor
+        self._gpu_cleaner = gpu_cleaner
         self._gpu_busy = False
         self._api_busy = False
         self._lock = threading.Lock()
@@ -133,6 +136,11 @@ class QueueWorker:
             logger.error("Job %s failed: %s", job.id, exc)
             self._queue.update_job(job.id, status="error", error=str(exc))
         finally:
+            if slot == "gpu" and self._gpu_cleaner is not None:
+                try:
+                    self._gpu_cleaner.deep_cleanup()
+                except Exception:
+                    pass
             with self._lock:
                 if slot == "gpu":
                     self._gpu_busy = False

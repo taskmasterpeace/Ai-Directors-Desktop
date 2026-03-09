@@ -18,3 +18,12 @@ class TorchCleaner:
     def cleanup(self) -> None:
         empty_device_cache(self._device)
         gc.collect()
+
+    def deep_cleanup(self) -> None:
+        """Aggressive cleanup for after heavy GPU workloads."""
+        gc.collect()
+        empty_device_cache(self._device)
+        gc.collect()
+        empty_device_cache(self._device)
+        if str(self._device) != "cpu" and torch.cuda.is_available():
+            torch.cuda.synchronize()

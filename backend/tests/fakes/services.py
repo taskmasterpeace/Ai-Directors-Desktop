@@ -158,6 +158,7 @@ class FakeLTXAPIClient:
         fps: float,
         generate_audio: bool,
         camera_motion: VideoCameraMotion = "none",
+        last_frame_uri: str | None = None,
     ) -> bytes:
         self.text_to_video_calls.append(
             {
@@ -169,6 +170,7 @@ class FakeLTXAPIClient:
                 "fps": fps,
                 "generate_audio": generate_audio,
                 "camera_motion": camera_motion,
+                "last_frame_uri": last_frame_uri,
             }
         )
         if self.raise_on_text_to_video is not None:
@@ -187,6 +189,7 @@ class FakeLTXAPIClient:
         fps: float,
         generate_audio: bool,
         camera_motion: VideoCameraMotion = "none",
+        last_frame_uri: str | None = None,
     ) -> bytes:
         self.image_to_video_calls.append(
             {
@@ -199,6 +202,7 @@ class FakeLTXAPIClient:
                 "fps": fps,
                 "generate_audio": generate_audio,
                 "camera_motion": camera_motion,
+                "last_frame_uri": last_frame_uri,
             }
         )
         if self.raise_on_image_to_video is not None:
@@ -307,6 +311,7 @@ class FakeVideoAPIClient:
         resolution: str,
         aspect_ratio: str,
         generate_audio: bool,
+        last_frame: str | None = None,
     ) -> bytes:
         self.text_to_video_calls.append({
             "api_key": api_key,
@@ -316,6 +321,7 @@ class FakeVideoAPIClient:
             "resolution": resolution,
             "aspect_ratio": aspect_ratio,
             "generate_audio": generate_audio,
+            "last_frame": last_frame,
         })
         if self.raise_on_text_to_video is not None:
             raise self.raise_on_text_to_video
@@ -326,7 +332,9 @@ class FakePaletteSyncClient:
     def __init__(self) -> None:
         self.validate_calls: list[str] = []
         self.credits_calls: list[str] = []
+        self.login_calls: list[tuple[str, str]] = []
         self.raise_on_validate: Exception | None = None
+        self.raise_on_login: Exception | None = None
         self.user_info: dict[str, Any] = {"id": "user-123", "email": "test@example.com", "name": "Test User"}
         self.credits_info: dict[str, Any] = {"balance": 5000, "currency": "credits"}
 
@@ -336,9 +344,43 @@ class FakePaletteSyncClient:
             raise self.raise_on_validate
         return self.user_info
 
+    def sign_in_with_email(self, *, email: str, password: str) -> dict[str, Any]:
+        self.login_calls.append((email, password))
+        if self.raise_on_login is not None:
+            raise self.raise_on_login
+        return {
+            "access_token": "fake-jwt-token",
+            "refresh_token": "fake-refresh-token",
+            "user": self.user_info,
+        }
+
+    def refresh_access_token(self, *, refresh_token: str) -> dict[str, Any]:
+        return {
+            "access_token": "refreshed-jwt-token",
+            "refresh_token": "refreshed-refresh-token",
+            "user": self.user_info,
+        }
+
     def get_credits(self, *, api_key: str) -> dict[str, Any]:
         self.credits_calls.append(api_key)
         return self.credits_info
+
+    def list_gallery(
+        self, *, api_key: str, page: int, per_page: int, asset_type: str,
+    ) -> dict[str, Any]:
+        return {"items": [], "total": 0, "page": page, "per_page": per_page, "total_pages": 0}
+
+    def list_characters(self, *, api_key: str) -> dict[str, Any]:
+        return {"characters": []}
+
+    def list_styles(self, *, api_key: str) -> dict[str, Any]:
+        return {"styles": [], "brands": []}
+
+    def list_references(self, *, api_key: str, category: str | None) -> dict[str, Any]:
+        return {"references": []}
+
+    def enhance_prompt(self, *, api_key: str, prompt: str, level: str) -> dict[str, Any]:
+        return {"enhanced_prompt": f"Enhanced ({level}): {prompt}"}
 
 
 class FakeModelDownloader:
@@ -405,6 +447,9 @@ class FakeGpuCleaner:
         self.cleanup_calls = 0
 
     def cleanup(self) -> None:
+        self.cleanup_calls += 1
+
+    def deep_cleanup(self) -> None:
         self.cleanup_calls += 1
 
 
@@ -597,6 +642,7 @@ class FakeImageGenerationPipeline:
     def __init__(self) -> None:
         self.device: str | None = None
         self.generate_calls: list[dict[str, Any]] = []
+        self.img2img_calls: list[dict[str, Any]] = []
         self.raise_on_generate: Exception | None = None
 
     def generate(self, **kwargs: Any) -> FakeZitOutput:
@@ -605,8 +651,20 @@ class FakeImageGenerationPipeline:
             raise self.raise_on_generate
         return FakeZitOutput(color="blue")
 
+    def img2img(self, **kwargs: Any) -> FakeZitOutput:
+        self.img2img_calls.append(kwargs)
+        if self.raise_on_generate is not None:
+            raise self.raise_on_generate
+        return FakeZitOutput(color="green")
+
     def to(self, device: str) -> None:
         self.device = device
+
+    def load_lora(self, lora_path: str, weight: float = 1.0) -> None:
+        pass
+
+    def unload_lora(self) -> None:
+        pass
 
 
 class FakeIcLoraPipeline:
