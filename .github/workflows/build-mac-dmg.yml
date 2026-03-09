@@ -89,20 +89,20 @@ jobs:
         # --prepackaged skips the build phase; electron-builder only creates the DMG.
         # CSC_IDENTITY_AUTO_DISCOVERY=false prevents any re-signing attempt.
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
-          PUBLISH_MODE="never"
-          if [ "${{ github.event_name }}" = "release" ]; then
-            PUBLISH_MODE="always"
-          fi
-
           pnpm exec electron-builder --mac dmg \
             --prepackaged "${{ steps.build-app.outputs.app_path }}" \
             --config.mac.notarize=false \
             --config.publish.owner=${{ github.repository_owner }} \
             --config.publish.repo=${{ github.event.repository.name }} \
-            --publish "$PUBLISH_MODE"
+            --publish never
+
+      - name: Upload DMG to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" release/*.dmg --clobber
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
