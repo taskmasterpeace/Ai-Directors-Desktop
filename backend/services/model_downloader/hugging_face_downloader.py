@@ -46,14 +46,15 @@ def _make_progress_tqdm_class(callback: Callable[[int, int], None]) -> type:
 
 
 @contextlib.contextmanager
-def _patch_http_get_progress(callback: Callable[[int, int], None]) -> Iterator[None]:
+def _patch_download_progress(callback: Callable[[int, int], None]) -> Iterator[None]:
     """Temporarily monkey-patch ``huggingface_hub.file_download.http_get``
-    to inject a custom tqdm bar that forwards progress to *callback*.
+    and ``xet_get`` to inject a custom tqdm bar that forwards progress to
+    *callback*.
 
     ``hf_hub_download`` does not expose a ``tqdm_class`` parameter (unlike
-    ``snapshot_download``), but its internal ``http_get`` accepts a private
-    ``_tqdm_bar`` kwarg.  We wrap ``http_get`` to inject our own bar when
-    the caller hasn't already provided one.
+    ``snapshot_download``), but its internal ``http_get`` and ``xet_get``
+    both accept a private ``_tqdm_bar`` kwarg.  We wrap them to inject our
+    own bar when the caller hasn't already provided one.
 
     See ``test_http_get_accepts_tqdm_bar`` — if that test breaks after a
     huggingface_hub upgrade, this patch needs to be revisited.
@@ -66,8 +67,20 @@ def _patch_http_get_progress(callback: Callable[[int, int], None]) -> Iterator[N
             kwargs["_tqdm_bar"] = tqdm_cls(disable=True)
         return original_http_get(*args, **kwargs)
 
+    xet_get_fn: Callable[..., Any] | None = getattr(file_download, "xet_get", None)
+
+    def _wrapped_xet_get(*args: Any, **kwargs: Any) -> None:
+        if kwargs.get("_tqdm_bar") is None:
+            kwargs["_tqdm_bar"] = tqdm_cls(disable=True)
+        assert xet_get_fn is not None
+        return xet_get_fn(*args, **kwargs)
+
     with patch.object(file_download, "http_get", _wrapped_http_get):
-        yield
+        if xet_get_fn is not None:
+            with patch.object(file_download, "xet_get", _wrapped_xet_get):
+                yield
+        else:
+            yield
 
 
 class HuggingFaceDownloader:
@@ -80,7 +93,7 @@ class HuggingFaceDownloader:
         local_dir: str,
         on_progress: Callable[[int, int], None] | None = None,
     ) -> Path:
-        ctx = _patch_http_get_progress(on_progress) if on_progress is not None else contextlib.nullcontext()
+        ctx = _patch_download_progress(on_progress) if on_progress is not None else contextlib.nullcontext()
         with ctx:
             path: str = hf_hub_download(repo_id=repo_id, filename=filename, local_dir=local_dir)
         return Path(path)
@@ -91,7 +104,7 @@ class HuggingFaceDownloader:
         local_dir: str,
         on_progress: Callable[[int, int], None] | None = None,
     ) -> Path:
-        ctx = _patch_http_get_progress(on_progress) if on_progress is not None else contextlib.nullcontext()
+        ctx = _patch_download_progress(on_progress) if on_progress is not None else contextlib.nullcontext()
         with ctx:
             path: str = snapshot_download(repo_id=repo_id, local_dir=local_dir)
         return Path(path)

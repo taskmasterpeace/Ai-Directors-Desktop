@@ -41,7 +41,7 @@ class FileDownloadRunning:
     progress: float
     downloaded_bytes: int
     total_bytes: int
-    speed_mbps: float
+    speed_bytes_per_sec: float
 
 
 @dataclass

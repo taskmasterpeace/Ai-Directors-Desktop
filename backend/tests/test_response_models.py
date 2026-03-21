@@ -39,7 +39,7 @@ class TestDownloadProgressCamelCaseKeys:
                 progress=0.45,
                 downloaded_bytes=5_000_000_000,
                 total_bytes=19_000_000_000,
-                speed_mbps=50,
+                speed_bytes_per_sec=50_000_000.0,
             )
         }
 
@@ -57,7 +57,7 @@ class TestDownloadProgressCamelCaseKeys:
             "filesCompleted",
             "totalFiles",
             "error",
-            "speedMbps",
+            "speedBytesPerSec",
         }
         assert set(data.keys()) == expected_keys
 

@@ -45,7 +45,7 @@ class ModelDownloadState(TypedDict):
     files_completed: int
     total_files: int
     error: str | None
-    speed_mbps: int
+    speed_bytes_per_sec: float
 
 
 JsonObject: TypeAlias = dict[str, object]
@@ -157,7 +157,7 @@ class DownloadProgressResponse(BaseModel):
     filesCompleted: int
     totalFiles: int
     error: str | None
-    speedMbps: int
+    speedBytesPerSec: float
 
 
 class IcLoraModel(BaseModel):

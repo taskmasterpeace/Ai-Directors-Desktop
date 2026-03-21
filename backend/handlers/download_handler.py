@@ -50,13 +50,13 @@ class DownloadHandler(StateHandlerBase):
                 progress=0.0,
                 downloaded_bytes=0,
                 total_bytes=size,
-                speed_mbps=0.0,
+                speed_bytes_per_sec=0.0,
             )
             for file_type, (target, size) in files.items()
         }
 
     @with_state_lock
-    def update_file_progress(self, file_type: ModelFileType, downloaded: int, total: int, speed_mbps: float) -> None:
+    def update_file_progress(self, file_type: ModelFileType, downloaded: int, total: int, speed_bytes_per_sec: float) -> None:
         match self.state.downloading_session:
             case dict() as files:
                 if file_type not in files:
@@ -66,7 +66,7 @@ class DownloadHandler(StateHandlerBase):
                         running.downloaded_bytes = downloaded
                         running.total_bytes = total
                         running.progress = 0.0 if total == 0 else min(1.0, max(0.0, downloaded / total))
-                        running.speed_mbps = speed_mbps
+                        running.speed_bytes_per_sec = speed_bytes_per_sec
                     case FileDownloadCompleted():
                         return
             case _:
@@ -86,12 +86,25 @@ class DownloadHandler(StateHandlerBase):
         self.state.downloading_session = DownloadError(error=error)
 
     def _make_progress_callback(self, file_type: ModelFileType) -> Callable[[int, int], None]:
-        start_time = time.monotonic()
+        last_sample_time = time.monotonic()
+        last_sample_bytes = 0
+        smoothed_speed = 0.0
 
         def on_progress(downloaded: int, total: int) -> None:
-            elapsed = time.monotonic() - start_time
-            speed_mbps = (downloaded / elapsed / (1024 * 1024)) if elapsed > 0 else 0.0
-            self.update_file_progress(file_type, downloaded, total, speed_mbps)
+            nonlocal last_sample_time, last_sample_bytes, smoothed_speed
+            now = time.monotonic()
+            elapsed = now - last_sample_time
+            if elapsed >= 1.0:
+                instant_speed = (downloaded - last_sample_bytes) / elapsed
+                # EWMA: weight new sample at 30%, keep 70% of previous.
+                # On first sample (smoothed_speed == 0) use instant value.
+                if smoothed_speed == 0.0:
+                    smoothed_speed = instant_speed
+                else:
+                    smoothed_speed = 0.3 * instant_speed + 0.7 * smoothed_speed
+                last_sample_time = now
+                last_sample_bytes = downloaded
+            self.update_file_progress(file_type, downloaded, total, smoothed_speed)
 
         return on_progress
 
@@ -103,7 +116,7 @@ class DownloadHandler(StateHandlerBase):
         status = "idle"
         current_file = ""
         current_file_progress = 0
-        speed_mbps = 0
+        speed_bytes_per_sec: float = 0.0
         downloaded_bytes = 0
         total_bytes = 0
         files_completed = 0
@@ -127,7 +140,7 @@ class DownloadHandler(StateHandlerBase):
                         case FileDownloadRunning() as running:
                             current_file = file_type
                             current_file_progress = int(running.progress * 100)
-                            speed_mbps = int(running.speed_mbps)
+                            speed_bytes_per_sec = running.speed_bytes_per_sec
                             downloaded_bytes += running.downloaded_bytes
             case _:
                 status = "idle"
@@ -144,7 +157,7 @@ class DownloadHandler(StateHandlerBase):
             filesCompleted=files_completed,
             totalFiles=total_files,
             error=error,
-            speedMbps=speed_mbps,
+            speedBytesPerSec=speed_bytes_per_sec,
         )
 
     def _move_to_final(self, file_type: ModelFileType) -> None:

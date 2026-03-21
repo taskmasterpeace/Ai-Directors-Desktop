@@ -31,7 +31,7 @@ interface ModelDownloadProgress {
   filesCompleted: number
   totalFiles: number
   error: string | null
-  speedMbps: number
+  speedBytesPerSec: number
 }
 
 interface ModelStatusDropdownProps {
@@ -117,9 +117,9 @@ export function ModelStatusDropdown({ className = '' }: ModelStatusDropdownProps
   }
 
   // Format time remaining
-  const formatTimeRemaining = (bytesRemaining: number, speedMbps: number): string => {
-    if (speedMbps <= 0) return 'Calculating...'
-    const secondsRemaining = (bytesRemaining / 1e6) / speedMbps
+  const formatTimeRemaining = (bytesRemaining: number, speedBytesPerSec: number): string => {
+    if (speedBytesPerSec <= 0) return 'Calculating...'
+    const secondsRemaining = bytesRemaining / speedBytesPerSec
     if (secondsRemaining < 60) return `${Math.ceil(secondsRemaining)}s`
     if (secondsRemaining < 3600) return `${Math.ceil(secondsRemaining / 60)}m`
     return `${(secondsRemaining / 3600).toFixed(1)}h`
@@ -212,7 +212,7 @@ export function ModelStatusDropdown({ className = '' }: ModelStatusDropdownProps
             <div className="px-4 py-3 bg-blue-500/5 border-b border-zinc-800">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-blue-300 font-medium">Downloading</span>
-                <span className="text-xs text-blue-400">{downloadProgress.speedMbps.toFixed(1)} MB/s</span>
+                <span className="text-xs text-blue-400">{(downloadProgress.speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s</span>
               </div>
 
               {/* Progress bar */}
@@ -230,7 +230,7 @@ export function ModelStatusDropdown({ className = '' }: ModelStatusDropdownProps
                   <span>
                     {formatTimeRemaining(
                       downloadProgress.totalBytes - downloadProgress.downloadedBytes,
-                      downloadProgress.speedMbps
+                      downloadProgress.speedBytesPerSec
                     )}
                   </span>
                 </div>
