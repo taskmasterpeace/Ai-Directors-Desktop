@@ -71,7 +71,8 @@ class ImageGenerationHandler(StateHandlerBase):
             )
 
         try:
-            self._pipelines.load_zit_to_gpu()
+            image_model = settings.image_model
+            self._pipelines.load_image_model_to_gpu(image_model)
             self._generation.start_generation(generation_id)
             output_paths = self.generate_image(
                 prompt=req.prompt,
@@ -84,6 +85,7 @@ class ImageGenerationHandler(StateHandlerBase):
                 lora_weight=req.loraWeight,
                 source_image_path=req.sourceImagePath,
                 strength=req.strength,
+                image_model=image_model,
             )
             self._generation.complete_generation(output_paths)
             return GenerateImageResponse(status="complete", image_paths=output_paths)
@@ -106,21 +108,23 @@ class ImageGenerationHandler(StateHandlerBase):
         lora_weight: float = 1.0,
         source_image_path: str | None = None,
         strength: float = 0.65,
+        image_model: str = "z-image-turbo",
     ) -> list[str]:
         if self._generation.is_generation_cancelled():
             raise RuntimeError("Generation was cancelled")
 
         self._generation.update_progress("preparing_gpu", 3, 0, num_inference_steps)
-        zit = self._pipelines.load_zit_to_gpu(
-            on_phase=lambda phase: self._generation.update_progress(phase, 5, 0, num_inference_steps)
+        pipeline = self._pipelines.load_image_model_to_gpu(
+            model_name=image_model,
+            on_phase=lambda phase: self._generation.update_progress(phase, 5, 0, num_inference_steps),
         )
 
         if lora_path:
             logger.info("Loading LoRA: %s (weight=%.2f)", lora_path, lora_weight)
             self._generation.update_progress("loading_lora", 10, 0, num_inference_steps)
-            zit.load_lora(lora_path, weight=lora_weight)
+            pipeline.load_lora(lora_path, weight=lora_weight)
         else:
-            zit.unload_lora()
+            pipeline.unload_lora()
 
         # Load and prepare source image for img2img
         source_image = None
@@ -136,8 +140,15 @@ class ImageGenerationHandler(StateHandlerBase):
         if seed is None:
             seed = int(time.time()) % 2147483647
 
+        is_flux = "flux" in image_model
         is_edit = source_image is not None
-        model_label = "zit-edit" if is_edit else "zit"
+        if is_flux:
+            model_label = "flux-klein-edit" if is_edit else "flux-klein"
+        else:
+            model_label = "zit-edit" if is_edit else "zit"
+
+        # FLUX Klein uses guidance_scale=4.0; ZIT uses 0.0
+        guidance = 4.0 if is_flux else 0.0
         outputs: list[str] = []
 
         for i in range(num_images):
@@ -148,22 +159,22 @@ class ImageGenerationHandler(StateHandlerBase):
             self._generation.update_progress("inference", progress, i, num_images)
 
             if source_image is not None:
-                result = zit.img2img(
+                result = pipeline.img2img(
                     prompt=prompt,
                     image=source_image,
                     strength=strength,
                     height=height,
                     width=width,
-                    guidance_scale=0.0,
+                    guidance_scale=guidance,
                     num_inference_steps=num_inference_steps,
                     seed=seed + i,
                 )
             else:
-                result = zit.generate(
+                result = pipeline.generate(
                     prompt=prompt,
                     height=height,
                     width=width,
-                    guidance_scale=0.0,
+                    guidance_scale=guidance,
                     num_inference_steps=num_inference_steps,
                     seed=seed + i,
                 )

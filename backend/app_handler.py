@@ -72,6 +72,7 @@ class AppHandler:
         palette_sync_client: PaletteSyncClient,
         fast_video_pipeline_class: type[FastVideoPipeline],
         image_generation_pipeline_class: type[ImageGenerationPipeline],
+        flux_klein_pipeline_class: type[ImageGenerationPipeline] | None,
         ic_lora_pipeline_class: type[IcLoraPipeline],
         a2v_pipeline_class: type[A2VPipeline],
         retake_pipeline_class: type[RetakePipeline],
@@ -92,6 +93,7 @@ class AppHandler:
         self.palette_sync_client = palette_sync_client
         self.fast_video_pipeline_class = fast_video_pipeline_class
         self.image_generation_pipeline_class = image_generation_pipeline_class
+        self.flux_klein_pipeline_class = flux_klein_pipeline_class
         self.ic_lora_pipeline_class = ic_lora_pipeline_class
         self.a2v_pipeline_class = a2v_pipeline_class
         self.retake_pipeline_class = retake_pipeline_class
@@ -105,6 +107,7 @@ class AppHandler:
                 "upsampler": None,
                 "text_encoder": None,
                 "zit": None,
+                "flux_klein": None,
             },
             downloading_session=None,
             gpu_slot=None,
@@ -154,6 +157,7 @@ class AppHandler:
             gpu_cleaner=gpu_cleaner,
             fast_video_pipeline_class=fast_video_pipeline_class,
             image_generation_pipeline_class=image_generation_pipeline_class,
+            flux_klein_pipeline_class=flux_klein_pipeline_class,
             ic_lora_pipeline_class=ic_lora_pipeline_class,
             a2v_pipeline_class=a2v_pipeline_class,
             retake_pipeline_class=retake_pipeline_class,
@@ -242,6 +246,14 @@ class AppHandler:
 
         self.gallery = GalleryHandler(outputs_dir=config.outputs_dir)
 
+        from state.lora_library import LoraLibraryStore
+        from handlers.lora_handler import LoraHandler
+        lora_store = LoraLibraryStore(config.models_dir / "loras")
+        self.lora = LoraHandler(
+            store=lora_store,
+            civitai_api_key=default_settings.civitai_api_key,
+        )
+
         self.downloads.cleanup_downloading_dir()
 
         from state.job_queue import JobQueue
@@ -321,6 +333,7 @@ class ServiceBundle:
     palette_sync_client: PaletteSyncClient
     fast_video_pipeline_class: type[FastVideoPipeline]
     image_generation_pipeline_class: type[ImageGenerationPipeline]
+    flux_klein_pipeline_class: type[ImageGenerationPipeline] | None
     ic_lora_pipeline_class: type[IcLoraPipeline]
     a2v_pipeline_class: type[A2VPipeline]
     retake_pipeline_class: type[RetakePipeline]
@@ -339,6 +352,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     from services.a2v_pipeline.ltx_a2v_pipeline import LTXa2vPipeline
     from services.ic_lora_pipeline.ltx_ic_lora_pipeline import LTXIcLoraPipeline
     from services.image_generation_pipeline.zit_image_generation_pipeline import ZitImageGenerationPipeline
+    from services.image_generation_pipeline.flux_klein_pipeline import FluxKleinImagePipeline
     from services.ltx_api_client.ltx_api_client_impl import LTXAPIClientImpl
     from services.model_downloader.hugging_face_downloader import HuggingFaceDownloader
     from services.retake_pipeline.ltx_retake_pipeline import LTXRetakePipeline
@@ -367,6 +381,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
         palette_sync_client=PaletteSyncClientImpl(http=http),
         fast_video_pipeline_class=LTXFastVideoPipeline,
         image_generation_pipeline_class=ZitImageGenerationPipeline,
+        flux_klein_pipeline_class=FluxKleinImagePipeline,
         ic_lora_pipeline_class=LTXIcLoraPipeline,
         a2v_pipeline_class=LTXa2vPipeline,
         retake_pipeline_class=LTXRetakePipeline,
@@ -397,6 +412,7 @@ def build_initial_state(
         palette_sync_client=bundle.palette_sync_client,
         fast_video_pipeline_class=bundle.fast_video_pipeline_class,
         image_generation_pipeline_class=bundle.image_generation_pipeline_class,
+        flux_klein_pipeline_class=bundle.flux_klein_pipeline_class,
         ic_lora_pipeline_class=bundle.ic_lora_pipeline_class,
         a2v_pipeline_class=bundle.a2v_pipeline_class,
         retake_pipeline_class=bundle.retake_pipeline_class,

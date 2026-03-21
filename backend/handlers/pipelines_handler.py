@@ -51,6 +51,7 @@ class PipelinesHandler(StateHandlerBase):
         gpu_cleaner: GpuCleaner,
         fast_video_pipeline_class: type[FastVideoPipeline],
         image_generation_pipeline_class: type[ImageGenerationPipeline],
+        flux_klein_pipeline_class: type[ImageGenerationPipeline] | None,
         ic_lora_pipeline_class: type[IcLoraPipeline],
         a2v_pipeline_class: type[A2VPipeline],
         retake_pipeline_class: type[RetakePipeline],
@@ -63,6 +64,7 @@ class PipelinesHandler(StateHandlerBase):
         self._gpu_cleaner = gpu_cleaner
         self._fast_video_pipeline_class = fast_video_pipeline_class
         self._image_generation_pipeline_class = image_generation_pipeline_class
+        self._flux_klein_pipeline_class = flux_klein_pipeline_class
         self._ic_lora_pipeline_class = ic_lora_pipeline_class
         self._a2v_pipeline_class = a2v_pipeline_class
         self._retake_pipeline_class = retake_pipeline_class
@@ -70,6 +72,8 @@ class PipelinesHandler(StateHandlerBase):
         self._outputs_dir = outputs_dir
         self._device = device
         self._runtime_device = get_device_type(device)
+        # Track which image model is currently loaded (zit or flux_klein)
+        self._loaded_image_model: str | None = None
 
     def _ensure_no_running_generation(self) -> None:
         match self.state.gpu_slot:
@@ -241,9 +245,70 @@ class PipelinesHandler(StateHandlerBase):
 
         with self._lock:
             self.state.gpu_slot = GpuSlot(active_pipeline=zit_service, generation=None)
+            self._loaded_image_model = "zit"
             self._assert_invariants()
 
         return zit_service
+
+    def load_image_model_to_gpu(
+        self,
+        model_name: str = "zit",
+        on_phase: "Callable[[str], None] | None" = None,
+    ) -> ImageGenerationPipeline:
+        """Load the requested image model to GPU.
+
+        Supports 'zit' (Z-Image-Turbo) and 'flux_klein' (FLUX.2 Klein 9B).
+        If the requested model is already loaded, returns it immediately.
+        """
+        if model_name == "flux-klein-9b" or model_name == "flux_klein":
+            return self._load_flux_klein_to_gpu(on_phase=on_phase)
+        # Default: load ZIT
+        return self.load_zit_to_gpu(on_phase=on_phase)
+
+    def _load_flux_klein_to_gpu(
+        self,
+        on_phase: "Callable[[str], None] | None" = None,
+    ) -> ImageGenerationPipeline:
+        """Load FLUX.2 Klein 9B to GPU."""
+        def _report(phase: str) -> None:
+            if on_phase is not None:
+                on_phase(phase)
+
+        # If FLUX Klein is already on GPU, return it (unless pipeline was
+        # destroyed after previous generation to avoid Windows VAE segfault)
+        with self._lock:
+            if self.state.gpu_slot is not None and self._loaded_image_model == "flux_klein":
+                active = self.state.gpu_slot.active_pipeline
+                if not isinstance(active, (VideoPipelineState, ICLoraState, A2VPipelineState, RetakePipelineState)):
+                    if hasattr(active, "pipeline"):
+                        return active
+                    # Pipeline was destroyed after last gen; fall through to reload
+
+            # Evict whatever is on GPU
+            if self.state.gpu_slot is not None:
+                self._ensure_no_running_generation()
+                _report("unloading_image_model")
+                self.state.gpu_slot = None
+                self.state.cpu_slot = None  # Don't cache ZIT when switching to FLUX
+                self._assert_invariants()
+
+        _report("cleaning_gpu")
+        self._gpu_cleaner.cleanup()
+
+        _report("loading_image_model")
+        if self._flux_klein_pipeline_class is None:
+            raise RuntimeError("FLUX.2 Klein pipeline class not configured")
+        flux_path = self._config.model_path("flux_klein")
+        if not (flux_path.exists() and any(flux_path.iterdir())):
+            raise RuntimeError("FLUX.2 Klein 9B model not downloaded. Please download it from the Model Status menu.")
+        flux_service = self._flux_klein_pipeline_class.create(str(flux_path), self._runtime_device)
+
+        with self._lock:
+            self.state.gpu_slot = GpuSlot(active_pipeline=flux_service, generation=None)
+            self._loaded_image_model = "flux_klein"
+            self._assert_invariants()
+
+        return flux_service
 
     def preload_zit_to_cpu(self) -> ImageGenerationPipeline:
         with self._lock:

@@ -28,6 +28,7 @@ MODEL_FILE_ORDER: tuple[ModelFileType, ...] = (
     "text_encoder",
     "text_encoder_abliterated",
     "zit",
+    "flux_klein",
 )
 
 
@@ -66,6 +67,13 @@ DEFAULT_MODEL_DOWNLOAD_SPECS: dict[ModelFileType, ModelFileDownloadSpec] = {
         is_folder=True,
         repo_id="Tongyi-MAI/Z-Image-Turbo",
         description="Z-Image-Turbo model for text-to-image generation",
+    ),
+    "flux_klein": ModelFileDownloadSpec(
+        relative_path=Path("FLUX.2-klein-base-9B"),
+        expected_size_bytes=50_000_000_000,
+        is_folder=True,
+        repo_id="black-forest-labs/FLUX.2-klein-base-9B",
+        description="FLUX.2 Klein 9B Base — text-to-image with LoRA support",
     ),
 }
 
