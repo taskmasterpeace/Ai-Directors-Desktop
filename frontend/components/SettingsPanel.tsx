@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Select } from './ui/select'
+import { LoraBrowser } from './LoraBrowser'
 import type { GenerationMode } from './ModeTabs'
 import {
   FORCED_API_VIDEO_FPS,
@@ -46,8 +48,9 @@ export function SettingsPanel({
   hasAudio = false,
   hasReplicateApiKey = false,
 }: SettingsPanelProps) {
+  const [loraBrowserOpen, setLoraBrowserOpen] = useState(false)
   const isImageMode = mode === 'text-to-image'
-  const LOCAL_MAX_DURATION: Record<string, number> = { '540p': 20, '720p': 10, '1080p': 5 }
+  const LOCAL_MAX_DURATION: Record<string, number> = { '540p': 60, '720p': 10, '1080p': 5 }
 
   const handleChange = (key: keyof GenerationSettings, value: string | number | boolean) => {
     const nextSettings = { ...settings, [key]: value } as GenerationSettings
@@ -58,7 +61,7 @@ export function SettingsPanel({
 
     // Clamp duration when resolution changes for local generation
     if (key === 'videoResolution' && !forceApiGenerations) {
-      const maxDur = LOCAL_MAX_DURATION[value as string] ?? 20
+      const maxDur = LOCAL_MAX_DURATION[value as string] ?? 60
       if (nextSettings.duration > maxDur) {
         nextSettings.duration = maxDur
       }
@@ -67,10 +70,10 @@ export function SettingsPanel({
     onSettingsChange(nextSettings)
   }
 
-  const localMaxDuration = LOCAL_MAX_DURATION[settings.videoResolution] ?? 20
+  const localMaxDuration = LOCAL_MAX_DURATION[settings.videoResolution] ?? 60
   const durationOptions = forceApiGenerations
     ? [...getAllowedForcedApiDurations(settings.model, settings.videoResolution, settings.fps)]
-    : [5, 6, 8, 10, 20].filter(d => d <= localMaxDuration)
+    : [4, 5, 6, 8, 10, 12, 16, 20, 30, 60].filter(d => d <= localMaxDuration)
   const resolutionOptions = forceApiGenerations
     ? (hasAudio ? ['1080p'] : [...FORCED_API_VIDEO_RESOLUTIONS])
     : ['1080p', '720p', '540p']
@@ -137,6 +140,16 @@ export function SettingsPanel({
             <button
               type="button"
               disabled={disabled}
+              onClick={() => setLoraBrowserOpen(true)}
+              className="flex-1 px-3 py-1.5 text-xs text-left bg-zinc-800 border border-zinc-700 rounded-lg hover:border-purple-500/40 truncate disabled:opacity-50"
+            >
+              {settings.loraPath
+                ? settings.loraPath.split(/[/\\]/).pop()
+                : 'None — click to browse library'}
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
               onClick={async () => {
                 try {
                   const files = await window.electronAPI.showOpenFileDialog({
@@ -152,7 +165,6 @@ export function SettingsPanel({
                   const ext = filePath.split('.').pop()?.toLowerCase()
 
                   if (ext === 'json') {
-                    // User selected a config JSON — extract trigger phrase
                     try {
                       const { data } = await window.electronAPI.readLocalFile(filePath)
                       const json = JSON.parse(atob(data))
@@ -162,16 +174,14 @@ export function SettingsPanel({
                       }
                     } catch { /* ignore parse errors */ }
                   } else {
-                    // User selected a safetensors file
                     onSettingsChange({ ...settings, loraPath: filePath })
                   }
                 } catch { /* cancelled */ }
               }}
-              className="flex-1 px-3 py-1.5 text-xs text-left bg-zinc-800 border border-zinc-700 rounded-lg hover:border-zinc-500 truncate disabled:opacity-50"
+              className="px-2 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-800 border border-zinc-700 rounded-lg"
+              title="Browse local files"
             >
-              {settings.loraPath
-                ? settings.loraPath.split(/[/\\]/).pop()
-                : 'None — click to browse'}
+              ...
             </button>
             {settings.loraPath && (
               <button
@@ -184,6 +194,19 @@ export function SettingsPanel({
               </button>
             )}
           </div>
+          <LoraBrowser
+            isOpen={loraBrowserOpen}
+            onClose={() => setLoraBrowserOpen(false)}
+            onSelectLora={(filePath, triggerPhrase, weight) => {
+              onSettingsChange({
+                ...settings,
+                loraPath: filePath,
+                loraWeight: weight,
+                loraTriggerPhrase: triggerPhrase || null,
+                loraTriggerMode: triggerPhrase ? 'prepend' : 'off',
+              })
+            }}
+          />
           {settings.loraPath && (
             <>
               <div className="flex items-center justify-between">

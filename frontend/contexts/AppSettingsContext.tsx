@@ -42,6 +42,7 @@ export interface AppSettings {
   promptEnhancerEnabledI2V: boolean
   seedLocked: boolean
   lockedSeed: number
+  hasCivitaiApiKey: boolean
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -62,6 +63,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   promptEnhancerEnabledI2V: false,
   seedLocked: false,
   lockedSeed: 42,
+  hasCivitaiApiKey: false,
 }
 
 type BackendProcessStatus = 'alive' | 'restarting' | 'dead'
@@ -76,6 +78,7 @@ interface AppSettingsContextValue {
   saveReplicateApiKey: (value: string) => Promise<void>
   saveGeminiApiKey: (value: string) => Promise<void>
   savePaletteApiKey: (value: string) => Promise<void>
+  saveCivitaiApiKey: (value: string) => Promise<void>
   forceApiGenerations: boolean
   shouldVideoGenerateWithLtxApi: boolean
   credits: CreditInfo
@@ -115,6 +118,7 @@ function normalizeAppSettings(data: Partial<AppSettings>): AppSettings {
     promptEnhancerEnabledI2V: data.promptEnhancerEnabledI2V ?? DEFAULT_APP_SETTINGS.promptEnhancerEnabledI2V,
     seedLocked: data.seedLocked ?? DEFAULT_APP_SETTINGS.seedLocked,
     lockedSeed: data.lockedSeed ?? DEFAULT_APP_SETTINGS.lockedSeed,
+    hasCivitaiApiKey: data.hasCivitaiApiKey ?? DEFAULT_APP_SETTINGS.hasCivitaiApiKey,
   }
 }
 
@@ -290,6 +294,20 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     await refreshSettings()
   }, [backendUrl, refreshSettings])
 
+  const saveCivitaiApiKey = useCallback(async (value: string) => {
+    if (!backendUrl) return
+    const response = await fetch(`${backendUrl}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ civitaiApiKey: value }),
+    })
+    if (!response.ok) {
+      const detail = await response.text()
+      throw new Error(detail || 'Failed to save CivitAI API key.')
+    }
+    await refreshSettings()
+  }, [backendUrl, refreshSettings])
+
   const saveReplicateApiKey = useCallback(async (value: string) => {
     if (!backendUrl) return
     const response = await fetch(`${backendUrl}/api/settings`, {
@@ -370,12 +388,13 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       saveReplicateApiKey,
       saveGeminiApiKey,
       savePaletteApiKey,
+      saveCivitaiApiKey,
       forceApiGenerations,
       shouldVideoGenerateWithLtxApi,
       credits,
       refreshCredits,
     }),
-    [credits, forceApiGenerations, isLoaded, refreshCredits, refreshSettings, runtimePolicyLoaded, savePaletteApiKey, saveReplicateApiKey, saveGeminiApiKey, saveLtxApiKey, settings, shouldVideoGenerateWithLtxApi, updateSettings],
+    [credits, forceApiGenerations, isLoaded, refreshCredits, refreshSettings, runtimePolicyLoaded, saveCivitaiApiKey, savePaletteApiKey, saveReplicateApiKey, saveGeminiApiKey, saveLtxApiKey, settings, shouldVideoGenerateWithLtxApi, updateSettings],
   )
 
   return <AppSettingsContext.Provider value={contextValue}>{children}</AppSettingsContext.Provider>

@@ -157,6 +157,12 @@ function getPhaseMessage(phase: string): string {
       return 'Downloading output...'
     case 'decoding':
       return 'Decoding video...'
+    case 'generating_segment':
+      return 'Generating segment...'
+    case 'extracting_frame':
+      return 'Extracting last frame...'
+    case 'concatenating':
+      return 'Joining segments...'
     case 'complete':
       return 'Complete!'
     default:
@@ -229,7 +235,7 @@ export function useGeneration(): UseGenerationReturn {
             }
 
             // Compute estimated total time for video jobs
-            if (activeJob.type === 'video' && next.estimatedSeconds === null) {
+            if ((activeJob.type === 'video' || activeJob.type === 'long_video') && next.estimatedSeconds === null) {
               next.estimatedSeconds = getEstimatedSeconds(activeJob)
             }
 
@@ -240,7 +246,7 @@ export function useGeneration(): UseGenerationReturn {
 
               next.lastModel = activeJob.model
 
-              if (activeJob.type === 'video' && activeJob.result_paths.length > 0) {
+              if ((activeJob.type === 'video' || activeJob.type === 'long_video') && activeJob.result_paths.length > 0) {
                 const rawPath = activeJob.result_paths[0]
                 next.videoUrl = pathToFileUrl(rawPath)
                 next.videoPath = rawPath
@@ -342,34 +348,40 @@ export function useGeneration(): UseGenerationReturn {
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
 
-      const params: Record<string, unknown> = {
-        prompt,
-        duration: String(settings.duration),
-        resolution: settings.videoResolution,
-        fps: String(settings.fps),
-        audio: String(settings.audio),
-        cameraMotion: settings.cameraMotion,
-        aspectRatio: settings.aspectRatio || '16:9',
-      }
-      if (imagePath) {
-        params.imagePath = imagePath
-      }
-      if (audioPath) {
-        params.audioPath = audioPath
-      }
-      if (lastFramePath) {
-        params.lastFramePath = lastFramePath
-      }
-      if (settings.loraPath) {
-        params.loraPath = settings.loraPath
-        params.loraWeight = settings.loraWeight ?? 1.0
-      }
+      // Use long_video pipeline for durations > 8s with a source image
+      const useLongVideo = settings.duration > 8 && imagePath && !audioPath && !lastFramePath
+
+      const params: Record<string, unknown> = useLongVideo
+        ? {
+            prompt,
+            imagePath,
+            targetDuration: settings.duration,
+            segmentDuration: 4,
+            resolution: settings.videoResolution,
+            aspectRatio: settings.aspectRatio || '16:9',
+            fps: settings.fps,
+            cameraMotion: settings.cameraMotion,
+            ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
+          }
+        : {
+            prompt,
+            duration: String(settings.duration),
+            resolution: settings.videoResolution,
+            fps: String(settings.fps),
+            audio: String(settings.audio),
+            cameraMotion: settings.cameraMotion,
+            aspectRatio: settings.aspectRatio || '16:9',
+            ...(imagePath ? { imagePath } : {}),
+            ...(audioPath ? { audioPath } : {}),
+            ...(lastFramePath ? { lastFramePath } : {}),
+            ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
+          }
 
       const response = await fetch(`${backendUrl}/api/queue/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'video',
+          type: useLongVideo ? 'long_video' : 'video',
           model: settings.model,
           params,
         }),

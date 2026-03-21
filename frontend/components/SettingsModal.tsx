@@ -20,7 +20,7 @@ interface SettingsModalProps {
 type TabId = 'general' | 'apiKeys' | 'inference' | 'promptEnhancer' | 'about'
 
 export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProps) {
-  const { settings, updateSettings, saveLtxApiKey, saveReplicateApiKey, saveGeminiApiKey, refreshSettings, forceApiGenerations } = useAppSettings()
+  const { settings, updateSettings, saveLtxApiKey, saveReplicateApiKey, saveGeminiApiKey, saveCivitaiApiKey, refreshSettings, forceApiGenerations } = useAppSettings()
   const onSettingsChange = (next: AppSettings) => updateSettings(next)
   const [activeTab, setActiveTab] = useState<TabId>('general')
   const [ltxApiKeyInput, setLtxApiKeyInput] = useState('')
@@ -38,6 +38,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [paletteLoginError, setPaletteLoginError] = useState<string | null>(null)
   const [paletteLoginLoading, setPaletteLoginLoading] = useState(false)
   const [paletteAuthMode, setPaletteAuthMode] = useState<'login' | 'apikey'>('login')
+  const [civitaiApiKeyInput, setCivitaiApiKeyInput] = useState('')
   const [textEncoderStatus, setTextEncoderStatus] = useState<TextEncoderStatus | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -880,7 +881,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:border-blue-500 focus:outline-none"
                     >
                       <option value="z-image-turbo">Z-Image Turbo</option>
-                      <option value="nano-banana-2">Nano Banana 2</option>
+                      <option value="flux-klein-9b">FLUX.2 Klein 9B</option>
+                      <option value="nano-banana-2">Nano Banana 2 (Cloud)</option>
                     </select>
                   </div>
 
@@ -962,6 +964,63 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     >
                       Get Gemini API key →
                     </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* CivitAI API Key Section */}
+              <div className="space-y-4 pt-4 border-t border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <Download className="h-4 w-4 text-orange-400" />
+                  <h3 className="text-sm font-semibold text-white">CivitAI</h3>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">LoRA Browser</span>
+                </div>
+
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Add your CivitAI API key to browse and download LoRAs directly from the app.
+                </p>
+
+                <div className="bg-zinc-800/50 rounded-lg p-4 space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={civitaiApiKeyInput}
+                      onChange={(e) => setCivitaiApiKeyInput(e.target.value)}
+                      placeholder={settings.hasCivitaiApiKey ? 'Enter new key to replace...' : 'Enter your CivitAI API key...'}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={() => {
+                        const trimmed = civitaiApiKeyInput.trim()
+                        if (!trimmed) return
+                        void saveCivitaiApiKey(trimmed)
+                        setCivitaiApiKeyInput('')
+                      }}
+                      disabled={!civitaiApiKeyInput.trim()}
+                      className="px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    >
+                      Save Key
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1.5 ${
+                      settings.hasCivitaiApiKey
+                        ? 'bg-green-500/10 text-green-400'
+                        : 'bg-zinc-800 text-zinc-500'
+                    }`}>
+                      {settings.hasCivitaiApiKey ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          Key configured
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-3 w-3" />
+                          Optional — needed for CivitAI browsing
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

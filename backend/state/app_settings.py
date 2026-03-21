@@ -89,6 +89,7 @@ class AppSettings(SettingsBaseModel):
     r2_bucket: str = ""
     r2_public_url: str = ""
     auto_upload_to_r2: bool = False
+    civitai_api_key: str = ""
 
     @field_validator("ffn_chunk_count", mode="before")
     @classmethod
@@ -175,6 +176,7 @@ class SettingsResponse(SettingsBaseModel):
     tea_cache_threshold: float = 0.0
     has_r2_credentials: bool = False
     auto_upload_to_r2: bool = False
+    has_civitai_api_key: bool = False
 
 
 def to_settings_response(settings: AppSettings) -> SettingsResponse:
@@ -196,6 +198,8 @@ def to_settings_response(settings: AppSettings) -> SettingsResponse:
     data.pop("r2_bucket", "")
     data.pop("r2_public_url", "")
     data["has_r2_credentials"] = bool(r2_key)
+    civitai_key = data.pop("civitai_api_key", "")
+    data["has_civitai_api_key"] = bool(civitai_key)
     return SettingsResponse.model_validate(data)
 
 

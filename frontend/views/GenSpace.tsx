@@ -396,11 +396,11 @@ function PromptBar({
   const [isAudioDragOver, setIsAudioDragOver] = useState(false)
   const [isLastFrameDragOver, setIsLastFrameDragOver] = useState(false)
   const isRetake = mode === 'retake'
-  const LOCAL_MAX_DURATION: Record<string, number> = { '540p': 20, '720p': 10, '1080p': 5 }
-  const localMaxDuration = LOCAL_MAX_DURATION[settings.videoResolution] ?? 20
+  const LOCAL_MAX_DURATION: Record<string, number> = { '540p': 60, '720p': 10, '1080p': 5 }
+  const localMaxDuration = LOCAL_MAX_DURATION[settings.videoResolution] ?? 60
   const videoDurationOptions = shouldVideoGenerateWithLtxApi
     ? [...getAllowedForcedApiDurations(settings.model, settings.videoResolution, settings.fps)]
-    : [5, 6, 8, 10, 20].filter(d => d <= localMaxDuration)
+    : [4, 5, 6, 8, 10, 12, 16, 20, 30, 60].filter(d => d <= localMaxDuration)
   const videoResolutionOptions = shouldVideoGenerateWithLtxApi
     ? (inputAudio ? ['1080p'] : [...FORCED_API_VIDEO_RESOLUTIONS])
     : ['540p', '720p', '1080p']

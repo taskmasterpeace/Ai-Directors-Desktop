@@ -34,4 +34,8 @@ def route_post_settings(
         ", ".join(sorted(changed_roots)) if changed_roots else "none",
     )
 
+    # Sync CivitAI API key to LoRA handler
+    if "civitai_api_key" in changed_roots:
+        handler.lora.set_api_key(_after.civitai_api_key)
+
     return StatusResponse(status="ok")
