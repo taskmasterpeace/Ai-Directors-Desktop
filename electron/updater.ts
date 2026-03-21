@@ -13,40 +13,26 @@ export function initAutoUpdater(
     autoUpdater.allowPrerelease = true
   }
 
-  // On Windows, don't auto-install — we need to pre-download python-embed first.
-  // On macOS, python is bundled in the DMG so auto-install is fine.
-  if (process.platform === 'win32') {
-    autoUpdater.autoInstallOnAppQuit = false
-  }
-
+  // Windows/Linux: best-effort pre-download of python-embed so the new version
+  // doesn't have to download it on first launch. This doesn't block the update —
+  // autoInstallOnAppQuit stays true (the default) so the update installs whenever
+  // the user naturally quits, whether or not the pre-download has finished.
   autoUpdater.on('update-downloaded', async (info: UpdateDownloadedEvent) => {
-    if (process.platform !== 'win32') {
-      // macOS: python is bundled, just install normally
-      autoUpdater.quitAndInstall(false, true)
-      return
-    }
+    if (process.platform === 'darwin') return
 
-    // Windows: pre-download python-embed if deps changed before restarting
     const newVersion = info.version
-    logger.info( `[updater] Update downloaded: v${newVersion}, checking python deps...`)
+    logger.info( `[updater] Update downloaded: v${newVersion}, pre-downloading python deps...`)
 
     try {
       const didDownload = await preDownloadPythonForUpdate(newVersion, (progress) => {
-        // Forward progress to renderer so it can show a "Preparing update..." UI
         getMainWindow()?.webContents.send('python-update-progress', progress)
       })
-
-      if (didDownload) {
-        logger.info( '[updater] Python pre-download complete, installing update...')
-      } else {
-        logger.info( '[updater] No python changes needed, installing update...')
-      }
+      logger.info( didDownload
+        ? '[updater] Python pre-download complete'
+        : '[updater] No python changes needed')
     } catch (err) {
-      // Pre-download failed — install anyway; the app will download at next launch
-      logger.error( `[updater] Python pre-download failed, proceeding with update: ${err}`)
+      logger.error( `[updater] Python pre-download failed: ${err}`)
     }
-
-    autoUpdater.quitAndInstall(false, true)
   })
 
   const update = () => {
