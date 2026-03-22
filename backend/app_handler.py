@@ -239,13 +239,6 @@ class AppHandler:
             outputs_dir=config.outputs_dir,
         )
 
-        self.sync = SyncHandler(
-            state=self.state,
-            palette_sync_client=palette_sync_client,
-        )
-
-        self.gallery = GalleryHandler(outputs_dir=config.outputs_dir)
-
         from state.lora_library import LoraLibraryStore
         from handlers.lora_handler import LoraHandler
         lora_store = LoraLibraryStore(config.models_dir / "loras")
@@ -253,6 +246,16 @@ class AppHandler:
             store=lora_store,
             civitai_api_key=default_settings.civitai_api_key,
         )
+
+        self.sync = SyncHandler(
+            state=self.state,
+            palette_sync_client=palette_sync_client,
+            http=http,
+            lora_store=lora_store,
+            loras_dir=config.models_dir / "loras",
+        )
+
+        self.gallery = GalleryHandler(outputs_dir=config.outputs_dir)
 
         self.downloads.cleanup_downloading_dir()
 
