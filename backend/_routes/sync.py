@@ -120,3 +120,8 @@ def sync_enhance_prompt(
     handler: AppHandler = Depends(get_state_service),
 ) -> dict[str, Any]:
     return handler.sync.enhance_prompt(prompt=body.prompt, level=body.level)
+
+
+@router.post("/library/sync-loras")
+def sync_loras(handler: AppHandler = Depends(get_state_service)) -> dict[str, Any]:
+    return handler.sync.sync_loras()
