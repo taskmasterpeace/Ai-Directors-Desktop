@@ -160,6 +160,8 @@ class AppHandler:
             text_handler=self.text,
             gpu_cleaner=gpu_cleaner,
             fast_video_pipeline_class=fast_video_pipeline_class,
+            gguf_video_pipeline_class=None,  # Will be set in Task 8
+            nf4_video_pipeline_class=None,   # Will be set in Task 9
             image_generation_pipeline_class=image_generation_pipeline_class,
             flux_klein_pipeline_class=flux_klein_pipeline_class,
             ic_lora_pipeline_class=ic_lora_pipeline_class,

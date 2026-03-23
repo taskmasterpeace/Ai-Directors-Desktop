@@ -50,6 +50,8 @@ class PipelinesHandler(StateHandlerBase):
         text_handler: TextHandler,
         gpu_cleaner: GpuCleaner,
         fast_video_pipeline_class: type[FastVideoPipeline],
+        gguf_video_pipeline_class: type[FastVideoPipeline] | None,
+        nf4_video_pipeline_class: type[FastVideoPipeline] | None,
         image_generation_pipeline_class: type[ImageGenerationPipeline],
         flux_klein_pipeline_class: type[ImageGenerationPipeline] | None,
         ic_lora_pipeline_class: type[IcLoraPipeline],
@@ -63,6 +65,8 @@ class PipelinesHandler(StateHandlerBase):
         self._text_handler = text_handler
         self._gpu_cleaner = gpu_cleaner
         self._fast_video_pipeline_class = fast_video_pipeline_class
+        self._gguf_video_pipeline_class = gguf_video_pipeline_class
+        self._nf4_video_pipeline_class = nf4_video_pipeline_class
         self._image_generation_pipeline_class = image_generation_pipeline_class
         self._flux_klein_pipeline_class = flux_klein_pipeline_class
         self._ic_lora_pipeline_class = ic_lora_pipeline_class
@@ -132,10 +136,35 @@ class PipelinesHandler(StateHandlerBase):
     ) -> VideoPipelineState:
         gemma_root = self._text_handler.resolve_gemma_root()
 
-        checkpoint_path = str(self._config.model_path("checkpoint"))
+        # Determine checkpoint path and pipeline class based on selected model
+        selected = self.state.app_settings.selected_video_model
+        custom_dir = self.state.app_settings.custom_video_model_path
+        pipeline_class = self._fast_video_pipeline_class
+
+        if selected:
+            base_dir = Path(custom_dir) if custom_dir else self._config.models_dir
+            model_path = base_dir / selected
+            checkpoint_path = str(model_path)
+
+            # Validate model file/folder still exists on disk
+            if not model_path.exists():
+                raise FileNotFoundError(
+                    f"Selected model not found: {checkpoint_path}. "
+                    "Go to Settings → Models to select a different model."
+                )
+
+            if selected.endswith(".gguf") and self._gguf_video_pipeline_class is not None:
+                pipeline_class = self._gguf_video_pipeline_class
+            elif model_path.is_dir() and self._nf4_video_pipeline_class is not None:
+                # NF4 models are folders
+                pipeline_class = self._nf4_video_pipeline_class
+            # else: safetensors files use default pipeline
+        else:
+            checkpoint_path = str(self._config.model_path("checkpoint"))
+
         upsampler_path = str(self._config.model_path("upsampler"))
 
-        pipeline = self._fast_video_pipeline_class.create(
+        pipeline = pipeline_class.create(
             checkpoint_path,
             gemma_root,
             upsampler_path,
