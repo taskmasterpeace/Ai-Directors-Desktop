@@ -12,7 +12,10 @@ from api_types import (
     ModelDownloadStartResponse,
     ModelInfo,
     ModelsStatusResponse,
+    SelectModelRequest,
     TextEncoderDownloadResponse,
+    VideoModelGuideResponse,
+    VideoModelScanResponse,
 )
 from _routes._errors import HTTPError
 from state import get_state_service
@@ -74,3 +77,23 @@ def route_text_encoder_download(handler: AppHandler = Depends(get_state_service)
         return TextEncoderDownloadResponse(status="started", message="Text encoder download started")
 
     raise HTTPError(400, "Failed to start download")
+
+
+@router.get("/models/video/scan", response_model=VideoModelScanResponse)
+def route_video_model_scan(handler: AppHandler = Depends(get_state_service)) -> VideoModelScanResponse:
+    return handler.models.scan_video_models()
+
+
+@router.post("/models/video/select")
+def route_video_model_select(
+    req: SelectModelRequest,
+    handler: AppHandler = Depends(get_state_service),
+) -> dict[str, str]:
+    handler.models.select_video_model(req.model)
+    handler.settings.save_settings()
+    return {"status": "ok"}
+
+
+@router.get("/models/video/guide", response_model=VideoModelGuideResponse)
+def route_video_model_guide(handler: AppHandler = Depends(get_state_service)) -> VideoModelGuideResponse:
+    return handler.models.video_model_guide()

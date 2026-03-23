@@ -6,13 +6,16 @@ from pathlib import Path
 from threading import RLock
 from typing import TYPE_CHECKING
 
-from api_types import ModelFileStatus, ModelInfo, ModelsStatusResponse, TextEncoderStatus
+from api_types import ModelFileStatus, ModelInfo, ModelsStatusResponse, TextEncoderStatus, VideoModelGuideResponse, VideoModelScanResponse
 from handlers.base import StateHandlerBase, with_state_lock
 from runtime_config.model_download_specs import MODEL_FILE_ORDER, resolve_required_model_types
+from services.model_scanner.model_guide_data import DISTILLED_LORA_INFO, MODEL_FORMATS, recommend_format
 from state.app_state_types import AppState, AvailableFiles
 
 if TYPE_CHECKING:
     from runtime_config.runtime_config import RuntimeConfig
+    from services.gpu_info.gpu_info import GpuInfo
+    from services.model_scanner.model_scanner import ModelScanner
 
 
 class ModelsHandler(StateHandlerBase):
@@ -21,9 +24,13 @@ class ModelsHandler(StateHandlerBase):
         state: AppState,
         lock: RLock,
         config: RuntimeConfig,
+        model_scanner: ModelScanner,
+        gpu_info_service: GpuInfo,
     ) -> None:
         super().__init__(state, lock)
         self._config = config
+        self._model_scanner = model_scanner
+        self._gpu_info = gpu_info_service
 
     @staticmethod
     def _path_size(path: Path, is_folder: bool) -> int:
@@ -142,3 +149,70 @@ class ModelsHandler(StateHandlerBase):
             text_encoder_status=self.get_text_encoder_status(),
             use_local_text_encoder=settings.use_local_text_encoder,
         )
+
+    def _get_video_models_dir(self) -> Path:
+        """Return the custom video model path if set, else the default models dir."""
+        custom = self.state.app_settings.custom_video_model_path
+        if custom:
+            return Path(custom)
+        return self._config.models_dir
+
+    def scan_video_models(self) -> VideoModelScanResponse:
+        folder = self._get_video_models_dir()
+        models = self._model_scanner.scan_video_models(folder)
+        distilled_lora_found = self._check_distilled_lora(folder)
+        return VideoModelScanResponse(
+            models=models,
+            distilled_lora_found=distilled_lora_found,
+        )
+
+    @with_state_lock
+    def select_video_model(self, model: str) -> None:
+        from _routes._errors import HTTPError
+        from state.app_state_types import GenerationRunning, GpuSlot
+
+        match self.state.gpu_slot:
+            case GpuSlot(generation=GenerationRunning()):
+                raise HTTPError(409, "Cannot change model while generation is running")
+            case _:
+                pass
+
+        folder = self._get_video_models_dir()
+        model_path = folder / model
+        if not model_path.exists():
+            raise HTTPError(400, f"Model file not found: {model}")
+
+        self.state.app_settings.selected_video_model = model
+
+    def video_model_guide(self) -> VideoModelGuideResponse:
+        vram_gb: int | None = None
+        gpu_name: str | None = None
+        try:
+            vram_gb = self._gpu_info.get_vram_total_gb()
+            gpu_name = self._gpu_info.get_device_name()
+        except Exception:
+            pass
+
+        return VideoModelGuideResponse(
+            recommended_format=recommend_format(vram_gb),
+            formats=MODEL_FORMATS,
+            distilled_lora=DISTILLED_LORA_INFO,
+            vram_gb=vram_gb,
+            gpu_name=gpu_name,
+        )
+
+    @staticmethod
+    def _check_distilled_lora(folder: Path) -> bool:
+        if not folder.exists():
+            return False
+        search_dirs = [folder, folder / "loras"]
+        for search_dir in search_dirs:
+            if not search_dir.exists():
+                continue
+            try:
+                for entry in search_dir.iterdir():
+                    if entry.is_file() and "distill" in entry.name.lower():
+                        return True
+            except OSError:
+                continue
+        return False

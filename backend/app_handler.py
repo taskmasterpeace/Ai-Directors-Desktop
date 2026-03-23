@@ -49,6 +49,7 @@ from services.interfaces import (
     TextEncoder,
     VideoProcessor,
 )
+from services.model_scanner.model_scanner import ModelScanner
 from state.app_state_types import AppState, StartupPending, TextEncoderState
 
 
@@ -77,6 +78,7 @@ class AppHandler:
         a2v_pipeline_class: type[A2VPipeline],
         retake_pipeline_class: type[RetakePipeline],
         ic_lora_model_downloader: IcLoraModelDownloader,
+        model_scanner: ModelScanner,
     ) -> None:
         self.config = config
 
@@ -133,6 +135,8 @@ class AppHandler:
             state=self.state,
             lock=self._lock,
             config=config,
+            model_scanner=model_scanner,
+            gpu_info_service=gpu_info,
         )
 
         self.downloads = DownloadHandler(
@@ -341,6 +345,7 @@ class ServiceBundle:
     a2v_pipeline_class: type[A2VPipeline]
     retake_pipeline_class: type[RetakePipeline]
     ic_lora_model_downloader: IcLoraModelDownloader
+    model_scanner: ModelScanner
 
 
 def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
@@ -358,6 +363,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     from services.image_generation_pipeline.flux_klein_pipeline import FluxKleinImagePipeline
     from services.ltx_api_client.ltx_api_client_impl import LTXAPIClientImpl
     from services.model_downloader.hugging_face_downloader import HuggingFaceDownloader
+    from services.model_scanner.model_scanner_impl import ModelScannerImpl
     from services.retake_pipeline.ltx_retake_pipeline import LTXRetakePipeline
     from services.task_runner.threading_runner import ThreadingRunner
     from services.text_encoder.ltx_text_encoder import LTXTextEncoder
@@ -389,6 +395,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
         a2v_pipeline_class=LTXa2vPipeline,
         retake_pipeline_class=LTXRetakePipeline,
         ic_lora_model_downloader=IcLoraModelDownloaderImpl(),
+        model_scanner=ModelScannerImpl(),
     )
 
 
@@ -420,4 +427,5 @@ def build_initial_state(
         a2v_pipeline_class=bundle.a2v_pipeline_class,
         retake_pipeline_class=bundle.retake_pipeline_class,
         ic_lora_model_downloader=bundle.ic_lora_model_downloader,
+        model_scanner=bundle.model_scanner,
     )
