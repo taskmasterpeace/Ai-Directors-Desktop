@@ -1,6 +1,7 @@
 import { AlertCircle, Check, Cpu, Download, Film, FolderOpen, Info, KeyRound, RefreshCw, Settings, Sliders, Sparkles, X, Zap } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
+import { ModelGuideDialog } from './ModelGuideDialog'
 import { useAppSettings, type AppSettings } from '../contexts/AppSettingsContext'
 import { logger } from '../lib/logger'
 import { ApiKeyHelperRow, LtxApiKeyInput, LtxApiKeyHelperRow } from './LtxApiKeyInput'
@@ -367,6 +368,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   ]
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
@@ -1633,23 +1635,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <Info className="h-4 w-4" />
                   Open Model Guide
                 </button>
-                {showModelGuide && (
-                  <div className="mt-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-white">Model Guide</h4>
-                      <button
-                        onClick={() => setShowModelGuide(false)}
-                        className="text-zinc-400 hover:text-white transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <p className="text-xs text-zinc-400 leading-relaxed">
-                      Use the Model Guide to find recommended model formats for your GPU.
-                      Download the appropriate .safetensors or .gguf file and place it in your model folder, then click Scan.
-                    </p>
-                  </div>
-                )}
               </div>
             </>
           )}
@@ -1776,6 +1761,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         </div>
       </div>
     </div>
+    <ModelGuideDialog isOpen={showModelGuide} onClose={() => setShowModelGuide(false)} />
+    </>
   )
 }
 
