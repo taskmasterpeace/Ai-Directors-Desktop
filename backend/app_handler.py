@@ -73,6 +73,7 @@ class AppHandler:
         palette_sync_client: PaletteSyncClient,
         fast_video_pipeline_class: type[FastVideoPipeline],
         gguf_video_pipeline_class: type[FastVideoPipeline] | None,
+        nf4_video_pipeline_class: type[FastVideoPipeline] | None,
         image_generation_pipeline_class: type[ImageGenerationPipeline],
         flux_klein_pipeline_class: type[ImageGenerationPipeline] | None,
         ic_lora_pipeline_class: type[IcLoraPipeline],
@@ -96,6 +97,7 @@ class AppHandler:
         self.palette_sync_client = palette_sync_client
         self.fast_video_pipeline_class = fast_video_pipeline_class
         self.gguf_video_pipeline_class = gguf_video_pipeline_class
+        self.nf4_video_pipeline_class = nf4_video_pipeline_class
         self.image_generation_pipeline_class = image_generation_pipeline_class
         self.flux_klein_pipeline_class = flux_klein_pipeline_class
         self.ic_lora_pipeline_class = ic_lora_pipeline_class
@@ -163,7 +165,7 @@ class AppHandler:
             gpu_cleaner=gpu_cleaner,
             fast_video_pipeline_class=fast_video_pipeline_class,
             gguf_video_pipeline_class=gguf_video_pipeline_class,
-            nf4_video_pipeline_class=None,   # Will be set in Task 9
+            nf4_video_pipeline_class=nf4_video_pipeline_class,
             image_generation_pipeline_class=image_generation_pipeline_class,
             flux_klein_pipeline_class=flux_klein_pipeline_class,
             ic_lora_pipeline_class=ic_lora_pipeline_class,
@@ -344,6 +346,7 @@ class ServiceBundle:
     palette_sync_client: PaletteSyncClient
     fast_video_pipeline_class: type[FastVideoPipeline]
     gguf_video_pipeline_class: type[FastVideoPipeline] | None
+    nf4_video_pipeline_class: type[FastVideoPipeline] | None
     image_generation_pipeline_class: type[ImageGenerationPipeline]
     flux_klein_pipeline_class: type[ImageGenerationPipeline] | None
     ic_lora_pipeline_class: type[IcLoraPipeline]
@@ -357,6 +360,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     """Build real runtime services with lazy heavy imports isolated from tests."""
     from services.fast_video_pipeline.ltx_fast_video_pipeline import LTXFastVideoPipeline
     from services.fast_video_pipeline.gguf_fast_video_pipeline import GGUFFastVideoPipeline
+    from services.fast_video_pipeline.nf4_fast_video_pipeline import NF4FastVideoPipeline
     from services.image_api_client.replicate_client_impl import ReplicateImageClientImpl
     from services.video_api_client.replicate_video_client_impl import ReplicateVideoClientImpl
     from services.gpu_cleaner.torch_cleaner import TorchCleaner
@@ -396,6 +400,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
         palette_sync_client=PaletteSyncClientImpl(http=http),
         fast_video_pipeline_class=LTXFastVideoPipeline,
         gguf_video_pipeline_class=GGUFFastVideoPipeline,
+        nf4_video_pipeline_class=NF4FastVideoPipeline,
         image_generation_pipeline_class=ZitImageGenerationPipeline,
         flux_klein_pipeline_class=FluxKleinImagePipeline,
         ic_lora_pipeline_class=LTXIcLoraPipeline,
@@ -429,6 +434,7 @@ def build_initial_state(
         palette_sync_client=bundle.palette_sync_client,
         fast_video_pipeline_class=bundle.fast_video_pipeline_class,
         gguf_video_pipeline_class=bundle.gguf_video_pipeline_class,
+        nf4_video_pipeline_class=bundle.nf4_video_pipeline_class,
         image_generation_pipeline_class=bundle.image_generation_pipeline_class,
         flux_klein_pipeline_class=bundle.flux_klein_pipeline_class,
         ic_lora_pipeline_class=bundle.ic_lora_pipeline_class,
