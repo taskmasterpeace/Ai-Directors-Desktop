@@ -676,7 +676,7 @@ class ExpandWildcardsResponse(BaseModel):
 class DetectedModel(BaseModel):
     filename: str
     path: str
-    format: str  # "bf16" | "fp8" | "gguf" | "nf4"
+    model_format: str  # "bf16" | "fp8" | "gguf" | "nf4"
     quant_type: str | None = None
     size_bytes: int
     size_gb: float
